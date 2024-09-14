@@ -517,12 +517,12 @@
 }
 
 
-        function updateFileInfo(index, field, value) {
-            fileList[index][field] = value;
-            if (field === 'roomType') {
-                validateCurrentStep();
-            }
-        }
+function updateFileInfo(index, field, value) {
+    fileList[index][field] = value;
+    if (field === 'roomType') {
+        validateCurrentStep();
+    }
+}
 
         function updateTotalPrice() {
             const totalPriceElement = document.getElementById('totalPrice');
