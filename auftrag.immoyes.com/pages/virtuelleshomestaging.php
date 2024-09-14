@@ -320,6 +320,16 @@
         return date.toLocaleDateString('de-DE', options);
     }
 
+    function showNotification(message, type) {
+        const notification = document.getElementById('notification');
+        notification.textContent = message;
+        notification.classList.add(type, 'show');
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 5000);
+    }
+
+
     function updateExpressDeliveryDate() {
         const expressDeliveryDateElement = document.getElementById('expressDeliveryDate');
         const standardDeliveryDateElement = document.getElementById('standardDeliveryDate');
