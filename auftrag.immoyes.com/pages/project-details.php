@@ -252,13 +252,13 @@
                 if (userCredits >= project.cost) {
                     statusButton = `
                         <button id="pay-now-button" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
-                            <i class="fas fa-check mr-2"></i> Jetzt zahlen
+                            <i class="fas fa-check mr-2"></i> Jetzt Auftrag zahlen und zur Bearbeitung freigeben
                         </button>
                     `;
                 } else {
                     statusButton = `
                         <a href="https://auftrag.immoyes.com/index.php?page=aufladen" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                            <i class="fas fa-coins mr-2"></i> Guthaben kaufen
+                            <i class="fas fa-coins mr-2"></i> Sie verfügen nicht über ausreichend Guthaben. Bitte Guthaben aufladen.
                         </a>
                     `;
                 }
