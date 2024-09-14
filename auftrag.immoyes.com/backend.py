@@ -45,11 +45,34 @@ import queue  # Add this import
 from flask_apscheduler import APScheduler
 from functools import wraps
 from collections import defaultdict
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+import tenacity
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from sqlalchemy import text
 
 
 
 logging.basicConfig(level=logging.DEBUG)
 scheduler = APScheduler()
+
+@retry(stop=stop_after_attempt(3), 
+       wait=wait_fixed(1),
+       retry=retry_if_exception_type(SQLAlchemyError))
+def check_db_connection():
+    try:
+        db.session.execute(text('SELECT 1'))
+        db.session.commit()
+    except SQLAlchemyError as e:
+        logger.error(f"Database connection error: {str(e)}")
+        db.session.rollback()
+        raise
+    finally:
+        db.session.close()
+
+
 
 
 def with_app_context(f):
@@ -95,21 +118,36 @@ def check_unread_messages():
 
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://auftrag.immoyes.com"}})
-UPLOAD_FOLDER = 'upload'
-FINALIZED_UPLOAD_FOLDER = 'finalized_uploads'
+CORS(app, resources={r"/*": {"origins": "https://auftrag.immoyes.com"}})
+UPLOAD_FOLDER = '/var/www/auftrag.immoyes.com/upload'
+FINALIZED_UPLOAD_FOLDER = '/var/www/auftrag.immoyes.com/finalized_uploads'
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'heic'}
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://auftrag.immoyes.com"}})
-CORS(app, supports_credentials=True, origins=["http://auftrag.immoyes.com", "http://127.0.0.1"])
+CORS(app, resources={r"/*": {"origins": "https://auftrag.immoyes.com"}})
+CORS(app, supports_credentials=True, origins=["https://auftrag.immoyes.com", "http://127.0.0.1"])
 
 # Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://d0414046:WS2A99X53jMsvsD7jWeV@w0108f4a.kasserver.com/immoyes'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://d0414046:WS2A99X53jMsvsD7jWeV@w0108f4a.kasserver.com/d0414046'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your_secret_key'  # Change this!
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['FINALIZED_UPLOAD_FOLDER'] = FINALIZED_UPLOAD_FOLDER
+# Add these lines for connection pooling configuration
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 10,  # Maximum number of persistent connections
+    'max_overflow': 5,  # Maximum number of connections that can be created beyond the pool_size
+    'pool_timeout': 30,  # Specifies the maximum number of seconds to wait when retrieving a new connection from the pool
+    'pool_recycle': 200,  # Recycle connections after the given number of seconds (30 minutes here)
+}
+
+@event.listens_for(Engine, "checkout")
+def receive_checkout(dbapi_connection, connection_record, connection_proxy):
+    logging.info("Connection checked out")
+
+@event.listens_for(Engine, "checkin")
+def receive_checkin(dbapi_connection, connection_record):
+    logging.info("Connection checked in")
 
 scheduler = APScheduler()
 
@@ -121,7 +159,6 @@ def allowed_file(filename):
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
@@ -254,7 +291,7 @@ app.config['MAIL_PORT'] = 465
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
 app.config['MAIL_USERNAME'] = 'portal@immoyes.com'
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_PASSWORD'] = '2qKt6nZDtmdseZ3FG92A'
 
 # Initialize extensions
 mail = Mail(app)
@@ -403,6 +440,7 @@ AUTO_REPLY_THRESHOLD = timedelta(minutes=1)  # Adjust this value as needed
 
 @app.route('/api/chat', methods=['POST'])
 @token_required
+
 def send_message(current_user):
     data = request.json
     message = data.get('message')
@@ -677,20 +715,23 @@ def cleanup_invalidated_tokens():
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
-    username = data.get('username')
     email = data.get('email')
     password = data.get('password')
 
     # Basic input validation
-    if not username or not email or not password:
-        return jsonify({'message': 'Username, email, and password are required'}), 400
+    if not email or not password:
+        return jsonify({'message': 'Email and password are required'}), 400
+
+    # Check if user already exists before trying to create a new one
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({'message': 'Email already exists'}), 409
 
     # Hash the password before storing it
     hashed_password = generate_password_hash(password)
 
     # Create a new user instance
     new_user = User(
-        username=username,
         email=email,
         password=hashed_password
     )
@@ -703,44 +744,55 @@ def register():
         return jsonify({
             'message': 'User registered successfully',
             'user_id': new_user.id,
-            'username': new_user.username,
             'email': new_user.email,
             'credits': new_user.credits,
             'is_admin': new_user.is_admin
         }), 201
 
-    except IntegrityError:
+    except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Username or email already exists'}), 409
+        print(f"Error during registration: {str(e)}")  # Log the error
+        return jsonify({'message': 'An error occurred during registration'}), 500
+
 
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    try:
+        check_db_connection()
 
-    if not username or not password:
-        return jsonify({'message': 'Username and password are required'}), 400
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
 
-    user = User.query.filter_by(username=username).first()
+        if not email or not password:
+            return jsonify({'message': 'Email and password are required'}), 400
 
-    if user and check_password_hash(user.password, password):
-        token = jwt.encode({
-            'user_id': user.id,
-            'exp': datetime.utcnow() + timedelta(hours=24)
-        }, app.config['SECRET_KEY'], algorithm="HS256")
+        user = User.query.filter_by(email=email).first()
 
-        return jsonify({
-            'message': 'Logged in successfully',
-            'token': token,
-            'user_id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'credits': user.credits,
-            'is_admin': user.is_admin
-        }), 200
-    else:
-        return jsonify({'message': 'Invalid username or password'}), 401
+        if user and check_password_hash(user.password, password):
+            token = jwt.encode({
+                'user_id': user.id,
+                'exp': datetime.utcnow() + timedelta(hours=24)
+            }, app.config['SECRET_KEY'], algorithm="HS256")
+
+            return jsonify({
+                'message': 'Logged in successfully',
+                'token': token,
+                'user_id': user.id,
+                'email': user.email,
+                'credits': user.credits,
+                'is_admin': user.is_admin
+            }), 200
+        else:
+            return jsonify({'message': 'Invalid email or password'}), 401
+
+    except SQLAlchemyError as e:
+        logger.error(f"Database error in login: {str(e)}")
+        return jsonify({'message': 'A database error occurred. Please try again.'}), 500
+    except Exception as e:
+        logger.error(f"Unexpected error in login: {str(e)}")
+        return jsonify({'message': 'An unexpected error occurred. Please try again.'}), 500
+    
 
 # Add this new route for 3D Floorplans
 @app.route('/api/3d-floorplan', methods=['POST'])
@@ -796,11 +848,16 @@ def submit_3d_floorplan(current_user):
 
         db.session.add(new_project)
         db.session.flush()  # This will assign an ID to new_project
+        app.logger.info(f"Created new project with ID: {new_project.id}")
+
+        # Define the base upload folder
+        base_upload_folder = '/var/www/auftrag.immoyes.com/upload'
 
         # Create a folder for the user based on their email and project ID
-        user_folder = os.path.join(app.config['UPLOAD_FOLDER'], current_user.email)
+        user_folder = os.path.join(base_upload_folder, current_user.email)
         project_folder = os.path.join(user_folder, str(new_project.id))
         os.makedirs(project_folder, exist_ok=True)
+        app.logger.info(f"Created project folder: {project_folder}")
 
         image_links = []
         floor_details = []
@@ -809,7 +866,8 @@ def submit_3d_floorplan(current_user):
                 filename = secure_filename(file.filename)
                 file_path = os.path.join(project_folder, filename)
                 file.save(file_path)
-                image_links.append(file_path)
+                app.logger.info(f"Saved file: {file_path}")
+                image_links.append(filename)  # Only append the filename, not the full path
 
                 floor = request.form.get(f'floors[{i}]', '')
                 notes = request.form.get(f'notes[{i}]', '')
@@ -821,20 +879,25 @@ def submit_3d_floorplan(current_user):
 
                 new_image = Image(
                     project_id=new_project.id,
-                    file_path=file_path,
+                    file_path=filename,  # Only store the filename, not the full path
                     room_type=floor,  # Using room_type to store floor information
                     notes=notes
                 )
                 db.session.add(new_image)
+                app.logger.info(f"Added new image to database: {filename}")
             else:
                 app.logger.error(f"Invalid file: {file.filename}")
                 return jsonify({'error': f'Invalid file: {file.filename}'}), 400
 
         new_project.image_links = json.dumps(image_links)
+        app.logger.info(f"Added image links to project: {image_links}")
         
         current_user.credits -= total_price
+        app.logger.info(f"Updated user credits. New balance: {current_user.credits}")
 
         db.session.commit()
+        app.logger.info("Committed changes to database")
+
         user_identifier = current_user.email
 
         # Send email to admin
@@ -857,10 +920,12 @@ def submit_3d_floorplan(current_user):
             admin_body += f"\n- Floor {i+1}: {floor['floor']}\n  Notes: {floor['notes']}"
 
         admin_msg = Message(admin_subject,
-                      sender=app.config['MAIL_USERNAME'],
+                      sender=("Immo Yes", app.config['MAIL_USERNAME']),
+
                       recipients=['jansen.tobias@gmail.com'])
         admin_msg.body = admin_body
         mail.send(admin_msg)
+        app.logger.info("Sent admin email")
 
         # Send email to customer
         customer_subject = "Neues 3D Floorplan Projekt erstellt"
@@ -907,7 +972,8 @@ def submit_3d_floorplan(current_user):
         """
 
         customer_msg = Message(customer_subject,
-                               sender=app.config['MAIL_USERNAME'],
+                               sender=("Immo Yes", app.config['MAIL_USERNAME']),
+
                                recipients=[current_user.email],
                                bcc=['jansen.tobias@gmail.com'])
         customer_msg.html = customer_html
@@ -917,6 +983,7 @@ def submit_3d_floorplan(current_user):
             customer_msg.attach("logo.png", "image/png", logo.read(), "inline", headers={'Content-ID': '<logo>'})
 
         mail.send(customer_msg)
+        app.logger.info("Sent customer email")
 
         app.logger.info("3D floorplan job submitted successfully and emails sent")
         return jsonify({
@@ -971,7 +1038,7 @@ def save_3d_floorplan_draft(current_user):
             name=job_title,
             description="3D Floorplan",
             user_id=current_user.id,
-            status='draft',
+            status='entwurf',
             cost=total_price,
             project_type='3d_floorplan',
             created_at=datetime.utcnow()
@@ -979,36 +1046,47 @@ def save_3d_floorplan_draft(current_user):
 
         db.session.add(new_project)
         db.session.flush()  # This will assign an ID to new_project
+        app.logger.info(f"Created new draft project with ID: {new_project.id}")
 
-        # Create a folder for the user based on their email
-        user_folder = os.path.join(app.config['UPLOAD_FOLDER'], current_user.email)
-        os.makedirs(user_folder, exist_ok=True)
+        # Define the base upload folder
+        base_upload_folder = '/var/www/auftrag.immoyes.com/upload'
+
+        # Create a folder for the user based on their email and project ID
+        user_folder = os.path.join(base_upload_folder, current_user.email)
+        project_folder = os.path.join(user_folder, str(new_project.id))
+        os.makedirs(project_folder, exist_ok=True)
+        app.logger.info(f"Created project folder: {project_folder}")
 
         image_links = []
         for i, file in enumerate(files):
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                file_path = os.path.join(user_folder, filename)
+                file_path = os.path.join(project_folder, filename)
                 file.save(file_path)
-                image_links.append(file_path)
+                app.logger.info(f"Saved file: {file_path}")
+                image_links.append(filename)  # Only append the filename, not the full path
 
                 floor = request.form.get(f'floors[{i}]', '')
                 notes = request.form.get(f'notes[{i}]', '')
 
                 new_image = Image(
                     project_id=new_project.id,
-                    file_path=file_path,
+                    file_path=filename,  # Only store the filename, not the full path
                     room_type=floor,  # Using room_type to store floor information
                     notes=notes
                 )
                 db.session.add(new_image)
+                app.logger.info(f"Added new image to database: {filename}")
             else:
                 app.logger.error(f"Invalid file: {file.filename}")
                 return jsonify({'error': f'Invalid file: {file.filename}'}), 400
 
         new_project.image_links = json.dumps(image_links)
+        app.logger.info(f"Added image links to project: {image_links}")
 
         db.session.commit()
+        app.logger.info("Committed changes to database")
+
         app.logger.info("3D floorplan job saved as draft successfully")
         return jsonify({
             'message': '3D floorplan job saved as draft successfully',
@@ -1016,6 +1094,7 @@ def save_3d_floorplan_draft(current_user):
         }), 201
     except Exception as e:
         app.logger.error(f"Error in save_3d_floorplan_draft: {str(e)}")
+        app.logger.exception("Full traceback:")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
@@ -1037,6 +1116,110 @@ from werkzeug.utils import secure_filename
 import os
 from datetime import datetime
 import json
+
+
+@app.route('/api/virtual-renovation/draft', methods=['POST'])
+@token_required
+def save_virtual_renovation_draft(current_user):
+    try:
+        app.logger.info(f"Received virtual renovation draft request. Form data: {request.form}")
+        app.logger.info(f"Files received: {request.files}")
+
+        if 'files' not in request.files:
+            app.logger.error("No file part in the request")
+            return jsonify({'error': 'No file part'}), 400
+        
+        files = request.files.getlist('files')
+        app.logger.info(f"Number of files received: {len(files)}")
+
+        job_title = request.form.get('jobTitle')
+        furniture_style = request.form.get('furnitureStyle')
+        total_price = request.form.get('totalPrice')
+
+        app.logger.info(f"Job Title: {job_title}")
+        app.logger.info(f"Furniture Style: {furniture_style}")
+        app.logger.info(f"Total Price: {total_price}")
+        
+        if not job_title:
+            app.logger.error("Missing job title")
+            return jsonify({'error': 'Missing job title'}), 400
+        if not furniture_style:
+            app.logger.error("Missing furniture style")
+            return jsonify({'error': 'Missing furniture style'}), 400
+        if not total_price:
+            app.logger.error("Missing total price")
+            return jsonify({'error': 'Missing total price'}), 400
+
+        try:
+            total_price = float(total_price)
+        except ValueError:
+            app.logger.error(f"Invalid total price: {total_price}")
+            return jsonify({'error': 'Invalid total price'}), 400
+
+        new_project = Project(
+            name=job_title,
+            description=f"Virtual Renovation - {furniture_style}",
+            user_id=current_user.id,
+            status='entwurf',
+            cost=total_price,
+            project_type='virtual_renovation',
+            furniture_style=furniture_style,
+            created_at=datetime.utcnow()
+        )
+
+        db.session.add(new_project)
+        db.session.flush()  # This will assign an ID to new_project
+        app.logger.info(f"Created new draft project with ID: {new_project.id}")
+
+        # Define the base upload folder
+        base_upload_folder = '/var/www/auftrag.immoyes.com/upload'
+
+        # Create a folder for the user based on their email and project ID
+        user_folder = os.path.join(base_upload_folder, current_user.email)
+        project_folder = os.path.join(user_folder, str(new_project.id))
+        os.makedirs(project_folder, exist_ok=True)
+        app.logger.info(f"Created project folder: {project_folder}")
+
+        image_links = []
+        for i, file in enumerate(files):
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(project_folder, filename)
+                file.save(file_path)
+                app.logger.info(f"Saved file: {file_path}")
+                image_links.append(filename)  # Only append the filename, not the full path
+
+                room_type = request.form.get(f'roomTypes[{i}]', '')
+                notes = request.form.get(f'notes[{i}]', '')
+
+                new_image = Image(
+                    project_id=new_project.id,
+                    file_path=filename,  # Only store the filename, not the full path
+                    room_type=room_type,
+                    notes=notes
+                )
+                db.session.add(new_image)
+                app.logger.info(f"Added new image to database: {filename}")
+            else:
+                app.logger.error(f"Invalid file: {file.filename}")
+                return jsonify({'error': f'Invalid file: {file.filename}'}), 400
+
+        new_project.image_links = json.dumps(image_links)
+        app.logger.info(f"Added image links to project: {image_links}")
+
+        db.session.commit()
+        app.logger.info("Committed changes to database")
+
+        app.logger.info("Virtual renovation job saved as draft successfully")
+        return jsonify({
+            'message': 'Virtual renovation job saved as draft successfully',
+            'project_id': new_project.id
+        }), 201
+    except Exception as e:
+        app.logger.error(f"Error in save_virtual_renovation_draft: {str(e)}")
+        app.logger.exception("Full traceback:")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/virtual-renovation', methods=['POST'])
 @token_required
@@ -1114,7 +1297,8 @@ def submit_virtual_renovation(current_user):
                 filename = secure_filename(file.filename)
                 file_path = os.path.join(project_folder, filename)
                 file.save(file_path)
-                image_links.append(file_path)
+                image_links.append(filename)
+
 
                 room_type = request.form.get(f'roomTypes[{i}]', '')
                 notes = request.form.get(f'notes[{i}]', '')
@@ -1126,7 +1310,7 @@ def submit_virtual_renovation(current_user):
 
                 new_image = Image(
                     project_id=new_project.id,
-                    file_path=file_path,
+                    file_path=filename,
                     room_type=room_type,
                     notes=notes
                 )
@@ -1161,7 +1345,8 @@ def submit_virtual_renovation(current_user):
             admin_body += f"\n- Room {i+1}: {room['room_type']}\n  Notes: {room['notes']}"
 
         admin_msg = Message(admin_subject,
-                      sender=app.config['MAIL_USERNAME'],
+                      sender=("Immo Yes", app.config['MAIL_USERNAME']),
+
                       recipients=['jansen.tobias@gmail.com'])
         admin_msg.body = admin_body
         mail.send(admin_msg)
@@ -1211,7 +1396,8 @@ def submit_virtual_renovation(current_user):
         """
 
         customer_msg = Message(customer_subject,
-                               sender=app.config['MAIL_USERNAME'],
+                               sender=("Immo Yes", app.config['MAIL_USERNAME']),
+
                                recipients=[current_user.email],
                                bcc=['jansen.tobias@gmail.com'])
         customer_msg.html = customer_html
@@ -1237,23 +1423,25 @@ def submit_virtual_renovation(current_user):
 @app.route('/profile', methods=['GET'])
 @token_required
 def get_profile(current_user):
-    user_data = {'username': current_user.username, 'email': current_user.email, 'credits': current_user.credits}
+    user_data = {'email': current_user.email, 'credits': current_user.credits}
     return jsonify(user_data)
 
 @app.route('/profile', methods=['PUT'])
 @token_required
 def update_profile(current_user):
     data = request.get_json()
-    current_user.username = data.get('username', current_user.username)
     current_user.email = data.get('email', current_user.email)
     db.session.commit()
     return jsonify({'message': 'Profile updated successfully'})
+
+@app.route('/uptime', methods=['GET'])
+def uptime_check():
+    return jsonify({'status': 'ok', 'message': 'Server is up and running'}), 200
 
 @app.route('/extended-profile', methods=['GET'])
 @token_required
 def get_extended_profile(current_user):
     user_data = {
-        'username': current_user.username,
         'email': current_user.email,
         'credits': current_user.credits,
         'vorname': current_user.vorname,
@@ -1316,20 +1504,20 @@ def get_jobs(current_user):
         {
             "title": "Virtuelles Homestaging",
             "price": 69.00,
-            "beforeImage": "static/bilder/vhb.webp",
-            "afterImage": "static/bilder/vha.webp"
+            "beforeImage": "https://auftrag.immoyes.com/static/bilder/VHB.webp",
+            "afterImage": "https://auftrag.immoyes.com/static/bilder/VHA.webp"
         },
         {
             "title": "Virtuelle Renovierung",
             "price": 99.00,
-            "beforeImage": "static/bilder/vrb.jpg",
-            "afterImage": "static/bilder/vra.webp"
+            "beforeImage": "https://auftrag.immoyes.com/static/bilder/VRB.jpg",
+            "afterImage": "https://auftrag.immoyes.com/static/bilder/VRA.webp"
         },
         {
             "title": "3D Grundriss",
             "price": 69.00,
-            "beforeImage": "static/bilder/gra.jpeg",
-            "afterImage": "static/bilder/grb.webp"
+            "beforeImage": "https://auftrag.immoyes.com/static/bilder/GRA.jpeg",
+            "afterImage": "https://auftrag.immoyes.com/static/bilder/GRB.webp"
         }
     ]
     return jsonify(jobs)
@@ -1550,7 +1738,7 @@ def submit_virtual_staging(current_user):
                 filename = secure_filename(file.filename)
                 file_path = os.path.join(project_folder, filename)
                 file.save(file_path)
-                image_links.append(file_path)
+                image_links.append(filename)  # Store only the filename
 
                 room_type = request.form.get(f'roomTypes[{i}]', '')
                 notes = request.form.get(f'notes[{i}]', '')
@@ -1562,7 +1750,7 @@ def submit_virtual_staging(current_user):
 
                 new_image = Image(
                     project_id=new_project.id,
-                    file_path=file_path,
+                    file_path=filename,  # Store only the filename
                     room_type=room_type,
                     notes=notes
                 )
@@ -1598,7 +1786,8 @@ def submit_virtual_staging(current_user):
             admin_body += f"\n- Room {i+1}: {room['room_type']}\n  Notes: {room['notes']}"
 
         admin_msg = Message(admin_subject,
-                      sender=app.config['MAIL_USERNAME'],
+                      sender=("Immo Yes", app.config['MAIL_USERNAME']),
+
                       recipients=['jansen.tobias@gmail.com'])
         admin_msg.body = admin_body
         mail.send(admin_msg)
@@ -1648,7 +1837,8 @@ def submit_virtual_staging(current_user):
         """
 
         customer_msg = Message(customer_subject,
-                               sender=app.config['MAIL_USERNAME'],
+                               sender=("Immo Yes", app.config['MAIL_USERNAME']),
+
                                recipients=[current_user.email],
                                bcc=['jansen.tobias@gmail.com'])
         customer_msg.html = customer_html
@@ -1832,7 +2022,6 @@ def get_in_progress_projects(current_user):
             'cost': project.cost,
             'furniture_style': project.furniture_style,
             'created_at': project.created_at.isoformat() if project.created_at else None,
-            'username': user.username if user else 'Unknown',
             'images': image_list
         })
     
@@ -1877,7 +2066,6 @@ def get_admin_project_details(current_user, project_id):
         'cost': project.cost,
         'furniture_style': project.furniture_style,
         'created_at': project.created_at.isoformat() if project.created_at else None,
-        'username': user.username if user else 'Unknown',
         'email': user.email if user else 'Unknown',
         'images': image_data,
         'final_images': final_image_links,
@@ -1927,40 +2115,56 @@ def save_virtual_staging_draft(current_user):
             name=job_title,
             description=f"Virtual Staging - {furniture_style}",
             user_id=current_user.id,
-            status='draft',
+            status='entwurf',
             cost=total_price,
+            project_type='virtual_staging',
             furniture_style=furniture_style,
-            created_at=datetime.datetime.utcnow()
+            created_at=datetime.utcnow()
         )
 
         db.session.add(new_project)
         db.session.flush()  # This will assign an ID to new_project
+        app.logger.info(f"Created new draft project with ID: {new_project.id}")
+
+        # Define the base upload folder
+        base_upload_folder = '/var/www/auftrag.immoyes.com/upload'
+
+        # Create a folder for the user based on their email and project ID
+        user_folder = os.path.join(base_upload_folder, current_user.email)
+        project_folder = os.path.join(user_folder, str(new_project.id))
+        os.makedirs(project_folder, exist_ok=True)
+        app.logger.info(f"Created project folder: {project_folder}")
 
         image_links = []
         for i, file in enumerate(files):
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file_path = os.path.join(project_folder, filename)
                 file.save(file_path)
-                image_links.append(file_path)
+                app.logger.info(f"Saved file: {file_path}")
+                image_links.append(filename)  # Only append the filename, not the full path
 
                 room_type = request.form.get(f'roomTypes[{i}]', '')
                 notes = request.form.get(f'notes[{i}]', '')
 
                 new_image = Image(
                     project_id=new_project.id,
-                    file_path=file_path,
+                    file_path=filename,  # Only store the filename, not the full path
                     room_type=room_type,
                     notes=notes
                 )
                 db.session.add(new_image)
+                app.logger.info(f"Added new image to database: {filename}")
             else:
                 app.logger.error(f"Invalid file: {file.filename}")
                 return jsonify({'error': f'Invalid file: {file.filename}'}), 400
 
         new_project.image_links = json.dumps(image_links)
+        app.logger.info(f"Added image links to project: {image_links}")
 
         db.session.commit()
+        app.logger.info("Committed changes to database")
+
         app.logger.info("Virtual staging job saved as draft successfully")
         return jsonify({
             'message': 'Virtual staging job saved as draft successfully',
@@ -1968,6 +2172,7 @@ def save_virtual_staging_draft(current_user):
         }), 201
     except Exception as e:
         app.logger.error(f"Error in save_virtual_staging_draft: {str(e)}")
+        app.logger.exception("Full traceback:")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
@@ -2496,13 +2701,13 @@ def upload_single_final_image(current_user, project_id, image_index):
 
         final_image_links = json.loads(project.final_image_links) if project.final_image_links else []
         
-        # Update or add the file path at the correct index
+        # Update or add just the filename at the correct index
         if image_index < len(final_image_links):
-            final_image_links[image_index] = file_path
+            final_image_links[image_index] = filename
         else:
             # Pad the list with None values if necessary
             final_image_links.extend([None] * (image_index - len(final_image_links) + 1))
-            final_image_links[image_index] = file_path
+            final_image_links[image_index] = filename
 
         project.final_image_links = json.dumps(final_image_links)
         if all(final_image_links) and len(final_image_links) == len(json.loads(project.image_links)):
@@ -2538,12 +2743,12 @@ def download_final_images(current_user, project_id):
 
         memory_file = io.BytesIO()
         with zipfile.ZipFile(memory_file, 'w') as zf:
-            for i, image_path in enumerate(final_images):
-                # Use the full path as stored in the database
-                full_path = os.path.join(app.root_path, image_path)
+            for i, image_filename in enumerate(final_images):
+                # Construct the full path using the new format
+                full_path = f'/var/www/auftrag.immoyes.com/finalized_uploads/{image_filename}'
                 if os.path.exists(full_path):
                     # Use just the filename for the archive
-                    archive_name = f'final_image_{i+1}{os.path.splitext(os.path.basename(image_path))[1]}'
+                    archive_name = f'final_image_{i+1}{os.path.splitext(image_filename)[1]}'
                     zf.write(full_path, archive_name)
                 else:
                     app.logger.warning(f"File not found: {full_path}")
@@ -2596,11 +2801,11 @@ def get_all_projects(current_user):
             'cost': project.cost,
             'furniture_style': project.furniture_style,
             'created_at': project.created_at.isoformat() if project.created_at else None,
-            'username': user.username if user else 'Unknown',
             'images': image_list,
-            'final_image_links': project.final_image_links
+            'final_image_links': project.final_image_links,
+            'email': user.email if user else None  # Add the user's email to the project data
         }
-        print(f"Project {project.id} final_image_links: {project.final_image_links}")  # Add this line
+        print(f"Project {project.id} final_image_links: {project.final_image_links}")
         project_list.append(project_data)
     
     return jsonify(project_list)
@@ -2921,6 +3126,116 @@ def get_dashboard_data():
             'messagesTrend': messages_trend
         }
     })
+
+@app.route('/project/<int:project_id>/pay', methods=['POST'])
+@token_required
+def process_project_payment(current_user, project_id):
+    data = request.get_json()
+    cost = float(data.get('cost', 0))
+
+    try:
+        with db.session.begin_nested():
+            # Get the project
+            project = Project.query.filter_by(id=project_id, user_id=current_user.id).first()
+            if not project:
+                return jsonify({'error': 'Project not found or does not belong to the user'}), 404
+
+            if project.status.lower() != 'entwurf':
+                return jsonify({'error': 'Project is not in draft status'}), 400
+
+            # Check if the user has sufficient credits
+            if current_user.credits < cost:
+                return jsonify({'error': 'Insufficient credits'}), 400
+
+            # Update user credits
+            current_user.credits -= cost
+
+            # Update project status
+            project.status = 'in bearbeitung'
+            project.updated_at = datetime.utcnow()
+
+            # Commit the changes
+            db.session.commit()
+
+        return jsonify({
+            'message': 'Payment processed successfully',
+            'newStatus': 'in bearbeitung',
+            'remainingCredits': current_user.credits
+        }), 200
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'error': 'Database error occurred'}), 500
+
+
+serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+@app.route('/request-password-reset', methods=['POST'])
+def passwort_zuruecksetzen_anfrage():
+    email = request.json.get('email')
+    benutzer = User.query.filter_by(email=email).first()
+    if not benutzer:
+        return jsonify({'nachricht': 'Falls ein Benutzer mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen des Passworts gesendet.'}), 200
+    
+    # Generiere einen Token
+    token = serializer.dumps(benutzer.email, salt='passwort-zuruecksetzen-salt')
+    
+    # Erstelle den Zurücksetz-Link
+    zuruecksetz_url = f"http://auftrag.immoyes.com/passwortreset.php?token={token}"
+    
+    # Sende E-Mail
+    betreff = "Anfrage zum Zurücksetzen des Passworts"
+    inhalt = f"""
+    Sehr geehrte(r) {benutzer.email},
+
+    Sie haben angefordert, Ihr Passwort zurückzusetzen. Bitte klicken Sie auf den untenstehenden Link, um Ihr Passwort zurückzusetzen:
+
+    {zuruecksetz_url}
+
+    Dieser Link läuft in 1 Stunde ab.
+
+    Wenn Sie dies nicht angefordert haben, ignorieren Sie bitte diese E-Mail.
+
+    Mit freundlichen Grüßen,
+    ImmoYes Team
+    """
+    
+    try:
+        nachricht = Message(betreff,
+                      sender=("Immo Yes", app.config['MAIL_USERNAME']),
+
+                      recipients=[benutzer.email])
+        nachricht.body = inhalt
+        mail.send(nachricht)
+        return jsonify({'nachricht': 'Falls ein Benutzer mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen des Passworts gesendet.'}), 200
+    except Exception as e:
+        app.logger.error(f"Fehler beim Senden der E-Mail zum Zurücksetzen des Passworts: {str(e)}")
+        return jsonify({'nachricht': 'Beim Senden der Zurücksetz-E-Mail ist ein Fehler aufgetreten.'}), 500
+
+@app.route('/reset-password', methods=['POST'])
+def passwort_zuruecksetzen():
+    token = request.json.get('token')
+    neues_passwort = request.json.get('neues_passwort')
+    
+    if not token or not neues_passwort:
+        return jsonify({'nachricht': 'Token und neues Passwort sind erforderlich.'}), 400
+    
+    try:
+        email = serializer.loads(token, salt='passwort-zuruecksetzen-salt', max_age=3600)  # Token läuft nach 1 Stunde ab
+    except SignatureExpired:
+        return jsonify({'nachricht': 'Der Link zum Zurücksetzen des Passworts ist abgelaufen.'}), 400
+    except BadSignature:
+        return jsonify({'nachricht': 'Der Link zum Zurücksetzen des Passworts ist ungültig.'}), 400
+    
+    benutzer = User.query.filter_by(email=email).first()
+    if not benutzer:
+        return jsonify({'nachricht': 'Benutzer nicht gefunden.'}), 404
+    
+    benutzer.password = generate_password_hash(neues_passwort)
+    db.session.commit()
+    
+    return jsonify({'nachricht': 'Ihr Passwort wurde erfolgreich zurückgesetzt.'}), 200
+
 # In your main block
 if __name__ == '__main__':
     logger.info("Starting the application")
@@ -2938,4 +3253,4 @@ if __name__ == '__main__':
     init_scheduler()  # Initialize and start the scheduler
     
     logger.info("Starting Flask server on port 1000")
-    app.run(host='0.0.0.0', port=1000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)

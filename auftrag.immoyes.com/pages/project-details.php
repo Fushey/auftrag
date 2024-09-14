@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -35,12 +34,12 @@
             gap: 1rem;
         }
         .image-pair {
-    display: flex;
-    gap: 1rem;
-    align-items: stretch;
-    flex-wrap: wrap;
-    justify-content: center;
-}
+            display: flex;
+            gap: 1rem;
+            align-items: stretch;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
         .image-card {
             flex: 1;
             display: flex;
@@ -149,6 +148,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const projectId = urlParams.get('id');
         let userEmail = '';
+        let userCredits = 0;
 
         fetchUserProfile();
 
@@ -167,6 +167,7 @@
             })
             .then(data => {
                 userEmail = data.email;
+                userCredits = data.credits;
                 document.getElementById('userCredits').innerHTML = `
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-green-400" fill="currentColor" viewBox="0 0 8 8">
@@ -245,6 +246,24 @@
 
         function updateProjectInfo(project) {
             const detailsContainer = document.getElementById('project-info');
+            let statusButton = '';
+            
+            if (project.status.toLowerCase() === 'entwurf') {
+                if (userCredits >= project.cost) {
+                    statusButton = `
+                        <button id="pay-now-button" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
+                            <i class="fas fa-check mr-2"></i> Jetzt zahlen
+                        </button>
+                    `;
+                } else {
+                    statusButton = `
+                        <a href="https://auftrag.immoyes.com/index.php?page=aufladen" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                            <i class="fas fa-coins mr-2"></i> Guthaben kaufen
+                        </a>
+                    `;
+                }
+            }
+
             detailsContainer.innerHTML = `
                 <h2 class="text-2xl font-semibold text-gray-900">${project.name}</h2>
                 <p class="mt-1 max-w-2xl text-sm text-gray-500">${project.description}</p>
@@ -272,6 +291,7 @@
                         </div>
                     </dl>
                 </div>
+                ${statusButton}
                 ${project.status.toLowerCase() === 'abgeschlossen' ? `
                     <div class="mt-6">
                         <button id="download-final-images" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
@@ -286,6 +306,14 @@
             if (downloadButton) {
                 downloadButton.addEventListener('click', function() {
                     downloadFinalImages(projectId, token);
+                });
+            }
+
+            // Add event listener to the pay now button if it exists
+            const payNowButton = document.getElementById('pay-now-button');
+            if (payNowButton) {
+                payNowButton.addEventListener('click', function() {
+                    processPayment(project.id, project.cost);
                 });
             }
         }
@@ -318,67 +346,48 @@
             }
         }
 
+        function createImageCard(image, index, type, isFinal = false) {
+            const card = document.createElement('div');
+            card.className = 'image-card bg-white rounded-lg shadow-md overflow-hidden mb-4';
+            
+            let imagePath;
+            if (isFinal) {
+                imagePath = `https://auftrag.immoyes.com/finalized_uploads/${encodeURIComponent(image.file_path.split('/').pop())}`;
+            } else {
+                imagePath = `https://auftrag.immoyes.com/upload/${encodeURIComponent(userEmail)}/${projectId}/${encodeURIComponent(image.file_path.split('/').pop())}`;
+            }
 
-
-
-
-function createImageCard(image, index, type, isFinal = false) {
-    const card = document.createElement('div');
-    card.className = 'image-card bg-white rounded-lg shadow-md overflow-hidden mb-4';
-    
-    let imagePath;
-    if (isFinal) {
-        imagePath = `https://auftrag.immoyes.com/finalized_uploads/${encodeURIComponent(image.file_path.split('/').pop())}`;
-    } else {
-        imagePath = `https://auftrag.immoyes.com/upload/${encodeURIComponent(userEmail)}/${projectId}/${encodeURIComponent(image.file_path.split('/').pop())}`;
-    }
-
-    card.innerHTML = `
-        <img src="${imagePath}" alt="${type} Image" class="w-full h-80 object-cover">
-        <div class="p-4">
-            <h3 class="font-semibold text-lg mb-2">${type} - ${image.room_type || `Image ${index + 1}`}</h3>
-            ${!isFinal ? `<p class="text-sm text-gray-600">${image.notes || ''}</p>` : ''}
-        </div>
-    `;
-
-    if (isFinal) {
-        const revisionToggle = document.createElement('div');
-        revisionToggle.className = 'p-4 bg-gray-50 border-t';
-        revisionToggle.innerHTML = `
-            <button onclick="toggleRevisionForm(${image.id})" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                Änderungen gewünscht?
-            </button>
-        `;
-        card.appendChild(revisionToggle);
-
-        const revisionForm = document.createElement('div');
-        revisionForm.id = `revisionForm-${image.id}`;
-        revisionForm.className = 'hidden p-4 bg-gray-100 border-t';
-        revisionForm.innerHTML = `
-            <textarea id="revisionText-${image.id}" class="w-full p-2 border rounded-md text-sm" rows="3" placeholder="Welche Änderungen wünschen Sie?"></textarea>
-            <button onclick="submitRevision(${image.id})" class="mt-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 transition duration-150 ease-in-out">
-                Absenden
-            </button>
-        `;
-        card.appendChild(revisionForm);
-    }
-
-    return card;
-}
-
-
-
-        function createRevisionForm(imageId) {
-            const form = document.createElement('div');
-            form.id = `revisionForm-${imageId}`;
-            form.className = 'hidden p-4 bg-gray-100 border-t';
-            form.innerHTML = `
-                <textarea id="revisionText-${imageId}" class="w-full p-2 border rounded-md text-sm" rows="3" placeholder="Welche Änderungen wünschen Sie?"></textarea>
-                <button onclick="submitRevision(${imageId})" class="mt-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 transition duration-150 ease-in-out">
-                    Absenden
-                </button>
+            card.innerHTML = `
+                <img src="${imagePath}" alt="${type} Image" class="w-full h-80 object-cover">
+                <div class="p-4">
+                    <h3 class="font-semibold text-lg mb-2">${type} - ${image.room_type || `Image ${index + 1}`}</h3>
+                    ${!isFinal ? `<p class="text-sm text-gray-600">${image.notes || ''}</p>` : ''}
+                </div>
             `;
-            return form;
+
+            if (isFinal) {
+                const revisionToggle = document.createElement('div');
+                revisionToggle.className = 'p-4 bg-gray-50 border-t';
+                revisionToggle.innerHTML = `
+                    <button onclick="toggleRevisionForm(${image.id})" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                        Änderungen gewünscht?
+                    </button>
+                `;
+                card.appendChild(revisionToggle);
+
+                const revisionForm = document.createElement('div');
+                revisionForm.id = `revisionForm-${image.id}`;
+                revisionForm.className = 'hidden p-4 bg-gray-100 border-t';
+                revisionForm.innerHTML = `
+                    <textarea id="revisionText-${image.id}" class="w-full p-2 border rounded-md text-sm" rows="3" placeholder="Welche Änderungen wünschen Sie?"></textarea>
+                    <button onclick="submitRevision(${image.id})" class="mt-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 transition duration-150 ease-in-out">
+                        Absenden
+                    </button>
+                `;
+                card.appendChild(revisionForm);
+            }
+
+            return card;
         }
 
         function createPlaceholderCard() {
@@ -396,44 +405,42 @@ function createImageCard(image, index, type, isFinal = false) {
             return card;
         }
 
-
-
-function updateRevisionHistory(project) {
-    const revisionContainer = document.getElementById('revision-container');
-    revisionContainer.innerHTML = '';
-    if (!project.revisions || project.revisions.length === 0) {
-        revisionContainer.innerHTML = '<p class="text-gray-500 italic">Für dieses Projekt ist kein Revisionsverlauf verfügbar.</p>';
-    } else {
-        project.revisions.forEach((revision, index) => {
-            const revisionCard = document.createElement('div');
-            revisionCard.className = 'bg-gray-50 rounded-lg p-4 shadow mb-4';
-            const date = new Date(revision.created_at).toLocaleString();
-            const associatedImage = project.images.find(img => img.id === revision.image_id);
-            let imagePath = '';
-            if (associatedImage) {
-                imagePath = `https://auftrag.immoyes.com/upload/${encodeURIComponent(userEmail)}/${projectId}/${encodeURIComponent(associatedImage.file_path.split('/').pop())}`;
-            }
-            revisionCard.innerHTML = `
-                <div class="flex items-start space-x-4">
-                    ${associatedImage ? `
-                        <img src="${imagePath}" alt="Associated Image" class="w-24 h-24 object-cover rounded">
-                    ` : '<div class="w-24 h-24 bg-gray-200 flex items-center justify-center text-gray-400">No Image</div>'}
-                    <div class="flex-grow">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold">Revision ${index + 1}</h3>
-                            <span class="text-sm text-gray-500">${date}</span>
+        function updateRevisionHistory(project) {
+            const revisionContainer = document.getElementById('revision-container');
+            revisionContainer.innerHTML = '';
+            if (!project.revisions || project.revisions.length === 0) {
+                revisionContainer.innerHTML = '<p class="text-gray-500 italic">Für dieses Projekt ist kein Revisionsverlauf verfügbar.</p>';
+            } else {
+                project.revisions.forEach((revision, index) => {
+                    const revisionCard = document.createElement('div');
+                    revisionCard.className = 'bg-gray-50 rounded-lg p-4 shadow mb-4';
+                    const date = new Date(revision.created_at).toLocaleString();
+                    const associatedImage = project.images.find(img => img.id === revision.image_id);
+                    let imagePath = '';
+                    if (associatedImage) {
+                        imagePath = `https://auftrag.immoyes.com/upload/${encodeURIComponent(userEmail)}/${projectId}/${encodeURIComponent(associatedImage.file_path.split('/').pop())}`;
+                    }
+                    revisionCard.innerHTML = `
+                        <div class="flex items-start space-x-4">
+                            ${associatedImage ? `
+                                <img src="${imagePath}" alt="Associated Image" class="w-24 h-24 object-cover rounded">
+                            ` : '<div class="w-24 h-24 bg-gray-200 flex items-center justify-center text-gray-400">No Image</div>'}
+                            <div class="flex-grow">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-semibold">Revision ${index + 1}</h3>
+                                    <span class="text-sm text-gray-500">${date}</span>
+                                </div>
+                                <p class="mt-2 text-gray-600">${revision.revision_text}</p>
+                                ${associatedImage ? `
+                                    <p class="mt-1 text-sm text-gray-500">Bzgl: ${associatedImage.room_type || 'Unnamed Room'}</p>
+                                ` : `<p class="mt-1 text-sm text-italic text-gray-500">No associated image (Image ID: ${revision.image_id})</p>`}
+                            </div>
                         </div>
-                        <p class="mt-2 text-gray-600">${revision.revision_text}</p>
-                        ${associatedImage ? `
-                            <p class="mt-1 text-sm text-gray-500">Bzgl: ${associatedImage.room_type || 'Unnamed Room'}</p>
-                        ` : `<p class="mt-1 text-sm text-italic text-gray-500">No associated image (Image ID: ${revision.image_id})</p>`}
-                    </div>
-                </div>
-            `;
-            revisionContainer.appendChild(revisionCard);
-        });
-    }
-}
+                    `;
+                    revisionContainer.appendChild(revisionCard);
+                });
+            }
+        }
 
         function formatDate(dateString) {
             const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
@@ -448,6 +455,7 @@ function updateRevisionHistory(project) {
                 case 'fertig': return 'bg-green-100 text-green-800';
                 case 'in revision': return 'bg-purple-100 text-purple-800';
                 case 'abgeschlossen': return 'bg-green-100 text-green-800';
+                case 'entwurf': return 'bg-gray-100 text-gray-800';
                 default: return 'bg-gray-100 text-gray-800';
             }
         }
@@ -478,7 +486,6 @@ function updateRevisionHistory(project) {
             }, 3000);
         }
 
-        // Add these new functions to handle the revision form toggle and submission
         window.toggleRevisionForm = function(imageId) {
             const form = document.getElementById(`revisionForm-${imageId}`);
             form.classList.toggle('hidden');
@@ -521,6 +528,40 @@ function updateRevisionHistory(project) {
             } else {
                 showNotification('Please enter a revision request before submitting.', 'error');
             }
+        }
+
+        function processPayment(projectId, cost) {
+            fetch(`https://api.immoyes.com/project/${projectId}/pay`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ cost: cost })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                showNotification('Payment processed successfully!', 'success');
+                userCredits -= cost;
+                document.getElementById('userCredits').innerHTML = `
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-green-400" fill="currentColor" viewBox="0 0 8 8">
+                            <circle cx="4" cy="4" r="3" />
+                        </svg>
+                        €${userCredits.toFixed(2)}
+                    </span>
+                `;
+                setTimeout(() => location.reload(), 2000);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(`Failed to process payment. ${error.message || 'Please try again.'}`, 'error');
+            });
         }
 
         // Initial call to fetch project details
