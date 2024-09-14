@@ -668,6 +668,13 @@
             }
         });
 
+        function updateFileInfo(index, field, value) {
+    fileList[index][field] = value;
+    if (field === 'roomType') {
+        validateCurrentStep();
+    }
+}
+
         function validateCurrentStep() {
             switch (currentStep) {
                 case 1:
