@@ -50,35 +50,57 @@
             100% { transform: rotate(360deg); }
         }
         .notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        border-radius: 4px;
-        color: white;
-        font-weight: bold;
-        opacity: 0;
-        transition: opacity 0.3s ease-in-out;
-    }
-
-    .notification.show {
-        opacity: 1;
-    }
-
-    .notification.success {
-        background-color: #48BB78 !important; /* Green color with !important */
-
-    }
-
-    .notification.error {
-        background-color: #F56565;  /* This remains red for errors */
-    }
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .notification.show {
+            opacity: 1;
+        }
+        .notification.success {
+            background-color: #48BB78 !important;
+        }
+        .notification.error {
+            background-color: #F56565;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -256px;
+                top: 0;
+                bottom: 0;
+                transition: left 0.3s ease-in-out;
+                z-index: 50;
+            }
+            .sidebar.open {
+                left: 0;
+            }
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 40;
+            }
+            .overlay.show {
+                display: block;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
     <div class="flex h-screen">
         <!-- Sidebar -->
-        <aside class="w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
+        <aside id="sidebar" class="sidebar w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
             <div class="p-6">
                 <div class="flex items-center justify-center mb-8">
                     <svg class="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -116,12 +138,20 @@
             </div>
         </aside>
 
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="overlay"></div>
+
         <!-- Main Content -->
         <main class="flex-1 overflow-x-hidden overflow-y-auto">
             <!-- Top Navigation -->
             <header class="bg-white shadow-sm">
                 <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h2 class="text-2xl font-semibold text-gray-800">Virtuelle Einrichtung</h2>
+                    <div class="flex items-center">
+                        <button id="sidebarToggle" class="md:hidden text-gray-500 hover:text-gray-700 mr-4">
+                            <i class="fas fa-bars text-2xl"></i>
+                        </button>
+                        <h2 class="text-2xl font-semibold text-gray-800">Virtuelle Einrichtung</h2>
+                    </div>
                     <div class="flex items-center space-x-4">
                         <span id="userCredits" class="text-sm font-medium text-gray-500"></span>
                         <a href="index.php?page=logout" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
@@ -167,7 +197,6 @@
                                     <img src="static/bilder/modern.jpeg" alt="Modern" class="w-full h-auto">
                                     <p class="text-center mt-2">Modern</p>
                                 </div>
-                                
                                 <div class="furniture-style">
                                     <img src="static/bilder/skandinavisch.jpeg" alt="Skandinavisch" class="w-full h-auto">
                                     <p class="text-center mt-2">Skandinavisch</p>
@@ -176,8 +205,6 @@
                                     <img src="static/bilder/klassisch.jpeg" alt="Traditionell" class="w-full h-auto">
                                     <p class="text-center mt-2">Traditionell</p>
                                 </div>
-                                
-                                
                                 <div class="furniture-style">
                                     <img src="static/bilder/industriell.png" alt="Urban/Industrial" class="w-full h-auto">
                                     <p class="text-center mt-2">Urban/Industrial</p>
@@ -202,34 +229,34 @@
                         <div id="step3" class="step step-inactive">
                             <h3 class="text-lg font-semibold mb-4">ZUSÄTZLICHE DIENSTLEISTUNGEN</h3>
                             <div class="space-y-4">
-                            <div class="upsell-option bg-white border border-gray-200 rounded-lg p-4">
-    <div class="flex items-center space-x-4 mb-4">
-        <img src="/static/bilder/48.png" alt="48-Stunden-Express-Service Icon" class="w-16 h-16" />
-        <div class="flex-grow">
-            <div class="flex items-center justify-between mb-2">
-                <h4 class="font-semibold">48-Stunden-Express-Service</h4>
-                <div class="flex items-center">
-                    <span class="text-indigo-600 font-semibold mr-2">+25 €</span>
-                    <input type="checkbox" id="expressService" class="form-checkbox h-5 w-5 text-indigo-600">
-                </div>
-            </div>
-            <p class="text-sm text-gray-600">Erhalten Sie Ihre virtuelle Einrichtung schneller</p>
-        </div>
-    </div>
-    <div id="deliveryDateContainer" class="mt-2 p-2 bg-indigo-50 rounded-md">
-        <p class="text-sm font-medium text-indigo-800">Voraussichtliches Lieferdatum:</p>
-        <p id="expressDeliveryDate" class="text-lg font-bold text-indigo-600"></p>
-        <p id="standardDeliveryDate" class="text-lg font-bold text-indigo-600"></p>
-    </div>
-</div>
+                                <div class="upsell-option bg-white border border-gray-200 rounded-lg p-4">
+                                    <div class="flex items-center space-x-4 mb-4">
+                                        <img src="/static/bilder/48.png" alt="48-Stunden-Express-Service Icon" class="w-16 h-16" />
+                                        <div class="flex-grow">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <h4 class="font-semibold">48-Stunden-Express-Service</h4>
+                                                <div class="flex items-center">
+                                                    <span class="text-indigo-600 font-semibold mr-2">+25 €</span>
+                                                    <input type="checkbox" id="expressService" class="form-checkbox h-5 w-5 text-indigo-600">
+                                                </div>
+                                            </div>
+                                            <p class="text-sm text-gray-600">Erhalten Sie Ihre virtuelle Einrichtung schneller</p>
+                                        </div>
+                                    </div>
+                                    <div id="deliveryDateContainer" class="mt-2 p-2 bg-indigo-50 rounded-md">
+                                        <p class="text-sm font-medium text-indigo-800">Voraussichtliches Lieferdatum:</p>
+                                        <p id="expressDeliveryDate" class="text-lg font-bold text-indigo-600"></p>
+                                        <p id="standardDeliveryDate" class="text-lg font-bold text-indigo-600"></p>
+                                    </div>
+                                </div>
                                 <div class="upsell-option bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between">
-                                <div class="flex items-center space-x-4">
-    <img src="/static/bilder/CC.png" alt="Color Correction Icon" class="w-16 h-16" />
-    <div>
-        <h4 class="font-semibold">Farbkorrektur</h4>
-        <p class="text-sm text-gray-600">Verbessern Sie die Farben Ihrer Fotos</p>
-    </div>
-</div>
+                                    <div class="flex items-center space-x-4">
+                                        <img src="/static/bilder/CC.png" alt="Color Correction Icon" class="w-16 h-16" />
+                                        <div>
+                                            <h4 class="font-semibold">Farbkorrektur</h4>
+                                            <p class="text-sm text-gray-600">Verbessern Sie die Farben Ihrer Fotos</p>
+                                        </div>
+                                    </div>
                                     <div class="flex items-center">
                                         <span class="text-indigo-600 font-semibold mr-2">+5 € pro Foto</span>
                                         <input type="checkbox" id="colorCorrection" class="form-checkbox h-5 w-5 text-indigo-600">
@@ -268,34 +295,11 @@
     let userCredits = 0;
 
     const roomTypes = [
-    "Wohnzimmer",
-    "Schlafzimmer",
-    "Badezimmer",
-    "Küche",
-    "Esszimmer",
-    "Büro",
-    "Außenbereich",
-    "Kinderzimmer",
-    "Arbeitszimmer",
-    "Gästezimmer",
-    "Dachboden",
-    "Keller",
-    "Flur",
-    "Eingangsbereich",
-    "Abstellraum",
-    "Hauswirtschaftsraum",
-    "Fitnessraum",
-    "Heimkino",
-    "Bibliothek",
-    "Wintergarten",
-    "Garage",
-    "Werkstatt",
-    "Hobbyraum",
-    "Ankleide",
-    "Balkon",
-    "Terrasse",
-    "Garten"
-];
+        "Wohnzimmer", "Schlafzimmer", "Badezimmer", "Küche", "Esszimmer", "Büro", "Außenbereich",
+        "Kinderzimmer", "Arbeitszimmer", "Gästezimmer", "Dachboden", "Keller", "Flur", "Eingangsbereich",
+        "Abstellraum", "Hauswirtschaftsraum", "Fitnessraum", "Heimkino", "Bibliothek", "Wintergarten",
+        "Garage", "Werkstatt", "Hobbyraum", "Ankleide", "Balkon", "Terrasse", "Garten"
+    ];
 
     function calculateDeliveryDate(hours) {
         let currentDate = new Date();
@@ -322,7 +326,7 @@
         const expressService = document.getElementById('expressService');
         
         const expressDeliveryDate = calculateDeliveryDate(48);
-        const standardDeliveryDate = calculateDeliveryDate(72); // Assuming standard delivery is 3 days
+        const standardDeliveryDate = calculateDeliveryDate(72);
 
         expressDeliveryDateElement.textContent = `Express: ${formatDate(expressDeliveryDate)}`;
         standardDeliveryDateElement.textContent = `Standard: ${formatDate(standardDeliveryDate)}`;
@@ -367,15 +371,15 @@
     }
 
     document.getElementById('nextStep').addEventListener('click', async () => {
-    if (validateCurrentStep()) {
-        if (currentStep < totalSteps) {
-            currentStep++;
-            await updateStep(currentStep);
-        } else {
-            document.getElementById('virtualStagingForm').dispatchEvent(new Event('submit'));
+        if (validateCurrentStep()) {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                await updateStep(currentStep);
+            } else {
+                document.getElementById('virtualStagingForm').dispatchEvent(new Event('submit'));
+            }
         }
-    }
-});
+    });
 
     document.getElementById('prevStep').addEventListener('click', () => {
         if (currentStep > 1) {
@@ -389,12 +393,11 @@
 
     // Möbelstil-Auswahl behandeln
     document.querySelectorAll('.furniture-style').forEach(style => {
-    style.addEventListener('click', () => {
-        document.querySelectorAll('.furniture-style').forEach(s => s.classList.remove('selected'));
-        style.classList.add('selected');
-        // Remove the validateCurrentStep() call from here
+        style.addEventListener('click', () => {
+            document.querySelectorAll('.furniture-style').forEach(s => s.classList.remove('selected'));
+            style.classList.add('selected');
+        });
     });
-});
 
     document.getElementById('selectFiles').addEventListener('click', () => {
         document.getElementById('fileInput').click();
@@ -422,34 +425,31 @@
         handleFileSelect(e);
     });
 
-    // Update the handleFileSelect function to revalidate the form
     function handleFileSelect(e) {
-    const files = e.target.files || e.dataTransfer.files;
-    for (let file of files) {
-        if (isValidFile(file)) {
-            if (!fileList.some(f => f.file.name === file.name)) {
-                fileList.push({
-                    file: file,
-                    roomType: '',
-                    notes: ''
-                });
+        const files = e.target.files || e.dataTransfer.files;
+        for (let file of files) {
+            if (isValidFile(file)) {
+                if (!fileList.some(f => f.file.name === file.name)) {
+                    fileList.push({
+                        file: file,
+                        roomType: '',
+                        notes: ''
+                    });
+                } else {
+                    showNotification(`Die Datei ${file.name} wurde bereits hinzugefügt.`, 'error');
+                }
             } else {
-                showNotification(`Die Datei ${file.name} wurde bereits hinzugefügt.`, 'error');
+                showNotification(`Ungültiger Dateityp: ${file.name}. Bitte laden Sie nur .jpg, .png, .gif oder .heic Dateien hoch.`, 'error');
             }
-        } else {
-            showNotification(`Ungültiger Dateityp: ${file.name}. Bitte laden Sie nur .jpg, .png, .gif oder .heic Dateien hoch.`, 'error');
         }
+        updateFileList();
     }
-    updateFileList();
-}
 
-
-function removeFile(index) {
-    fileList.splice(index, 1);
-    updateFileList();
-    validateCurrentStep();
-}
-
+    function removeFile(index) {
+        fileList.splice(index, 1);
+        updateFileList();
+        validateCurrentStep();
+    }
 
     function isValidFile(file) {
         const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/heic'];
@@ -457,52 +457,52 @@ function removeFile(index) {
     }
 
     function updateFileList() {
-    const fileListElement = document.getElementById('fileList');
-    fileListElement.innerHTML = '';
-    fileList.forEach((fileInfo, index) => {
-        const fileItem = document.createElement('div');
-        fileItem.className = 'file-item bg-white shadow-md rounded-lg p-6 mb-4 transition-all duration-300 ease-in-out';
-        fileItem.innerHTML = `
-            <div class="flex justify-between items-center mb-4">
-                <span class="font-semibold text-lg">${fileInfo.file.name}</span>
-                <button type="button" class="text-red-500 hover:text-red-700 transition-colors duration-300" onclick="removeFile(${index})">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <div class="md:col-span-2">
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Raumtyp</label>
-                        <select class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300 ${!fileInfo.roomType ? 'border-yellow-500' : ''}" onchange="updateFileInfo(${index}, 'roomType', this.value)">
-                            <option value="">Raumtyp auswählen...</option>
-                            ${roomTypes.map(type => `<option value="${type}" ${fileInfo.roomType === type ? 'selected' : ''}>${type}</option>`).join('')}
-                        </select>
+        const fileListElement = document.getElementById('fileList');
+        fileListElement.innerHTML = '';
+        fileList.forEach((fileInfo, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item bg-white shadow-md rounded-lg p-6 mb-4 transition-all duration-300 ease-in-out';
+            fileItem.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <span class="font-semibold text-lg">${fileInfo.file.name}</span>
+                    <button type="button" class="text-red-500 hover:text-red-700 transition-colors duration-300" onclick="removeFile(${index})">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div class="md:col-span-2">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Raumtyp</label>
+                            <select class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300 ${!fileInfo.roomType ? 'border-yellow-500' : ''}" onchange="updateFileInfo(${index}, 'roomType', this.value)">
+                                <option value="">Raumtyp auswählen...</option>
+                                ${roomTypes.map(type => `<option value="${type}" ${fileInfo.roomType === type ? 'selected' : ''}>${type}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Anmerkungen</label>
+                            <textarea class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300" rows="3" onchange="updateFileInfo(${index}, 'notes', this.value)" placeholder="Fügen Sie hier spezifische Anweisungen hinzu...">${fileInfo.notes}</textarea>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Anmerkungen</label>
-                        <textarea class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300" rows="3" onchange="updateFileInfo(${index}, 'notes', this.value)" placeholder="Fügen Sie hier spezifische Anweisungen hinzu...">${fileInfo.notes}</textarea>
+                    <div class="flex justify-center items-center">
+                        <div class="w-32 h-32 overflow-hidden rounded-lg">
+                            <img src="${URL.createObjectURL(fileInfo.file)}" alt="Vorschau" class="w-full h-full object-cover">
+                        </div>
                     </div>
                 </div>
-                <div class="flex justify-center items-center">
-                    <div class="w-32 h-32 overflow-hidden rounded-lg">
-                        <img src="${URL.createObjectURL(fileInfo.file)}" alt="Vorschau" class="w-full h-full object-cover">
-                    </div>
-                </div>
-            </div>
-        `;
-        fileListElement.appendChild(fileItem);
-    });
-    updateTotalPrice();
-}
-
-function updateFileInfo(index, field, value) {
-    fileList[index][field] = value;
-    if (field === 'roomType') {
-        validateCurrentStep();
+            `;
+            fileListElement.appendChild(fileItem);
+        });
+        updateTotalPrice();
     }
-}
+
+    function updateFileInfo(index, field, value) {
+        fileList[index][field] = value;
+        if (field === 'roomType') {
+            validateCurrentStep();
+        }
+    }
 
     function updateTotalPrice() {
         const totalPriceElement = document.getElementById('totalPrice');
@@ -537,12 +537,11 @@ function updateFileInfo(index, field, value) {
         const submitButton = document.getElementById('nextStep');
         if (currentStep === totalSteps) {
             if (userCredits >= totalPrice) {
-                submitButton.textContent = 'Auftrag erteilen';
-                submitButton.className = 'bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded m-2';
-            } else {
-                submitButton.textContent = 'Als Entwurf speichern & Punkte kaufen';
-                submitButton.className = 'bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded m-2';
-            }
+            submitButton.textContent = 'Auftrag erteilen';
+            submitButton.className = 'bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded m-2';
+        } else {
+            submitButton.textContent = 'Als Entwurf speichern & Punkte kaufen';
+            submitButton.className = 'bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded m-2';
         }
     }
 
@@ -564,130 +563,146 @@ function updateFileInfo(index, field, value) {
     }
 
     document.getElementById('virtualStagingForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    if (!validateCurrentStep()) {
-        return;
-    }
+        e.preventDefault();
+        
+        if (!validateCurrentStep()) {
+            return;
+        }
 
-    const formData = new FormData();
-    
-    formData.append('jobTitle', document.getElementById('jobTitle').value);
-    const selectedStyle = document.querySelector('.furniture-style.selected');
-    formData.append('furnitureStyle', selectedStyle ? selectedStyle.textContent.trim() : '');
-    let totalPrice = fileList.length * pricePerImage;
+        const formData = new FormData();
+        
+        formData.append('jobTitle', document.getElementById('jobTitle').value);
+        const selectedStyle = document.querySelector('.furniture-style.selected');
+        formData.append('furnitureStyle', selectedStyle ? selectedStyle.textContent.trim() : '');
+        let totalPrice = fileList.length * pricePerImage;
 
-    const expressService = document.getElementById('expressService');
-    const colorCorrection = document.getElementById('colorCorrection');
-    
-    formData.append('expressService', expressService.checked);
-    formData.append('colorCorrection', colorCorrection.checked);
-    
-    if (expressService.checked) {
-        totalPrice += expressServicePrice;
-    }
-    
-    if (colorCorrection.checked) {
-        totalPrice += fileList.length * colorCorrectionPrice;
-    }
-    
-    formData.append('totalPrice', totalPrice.toFixed(2));
+        const expressService = document.getElementById('expressService');
+        const colorCorrection = document.getElementById('colorCorrection');
+        
+        formData.append('expressService', expressService.checked);
+        formData.append('colorCorrection', colorCorrection.checked);
+        
+        if (expressService.checked) {
+            totalPrice += expressServicePrice;
+        }
+        
+        if (colorCorrection.checked) {
+            totalPrice += fileList.length * colorCorrectionPrice;
+        }
+        
+        formData.append('totalPrice', totalPrice.toFixed(2));
 
-    fileList.forEach((fileInfo, index) => {
-        formData.append(`files`, fileInfo.file);
-        formData.append(`roomTypes[${index}]`, fileInfo.roomType);
-        formData.append(`notes[${index}]`, fileInfo.notes);
+        fileList.forEach((fileInfo, index) => {
+            formData.append(`files`, fileInfo.file);
+            formData.append(`roomTypes[${index}]`, fileInfo.roomType);
+            formData.append(`notes[${index}]`, fileInfo.notes);
+        });
+
+        try {
+            if (userCredits >= totalPrice) {
+                showSpinner();
+                
+                // Simulate a 3-second delay
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                const response = await fetch('https://api.immoyes.com/api/virtual-staging', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Fehler beim Übermitteln des virtuellen Einrichtungsauftrags');
+                }
+
+                const result = await response.json();
+                hideSpinner();
+                showNotification(`Virtueller Einrichtungsauftrag erfolgreich übermittelt! Verbleibende Credits: ${result.remaining_credits}`, 'success');
+                setTimeout(() => {
+                    window.location.href = 'index.php?page=dashboard';
+                }, 2000);
+            } else {
+                const draftResponse = await fetch('https://api.immoyes.com/api/virtual-staging/draft', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: formData
+                });
+
+                if (!draftResponse.ok) {
+                    throw new Error('Fehler beim Speichern des virtuellen Einrichtungsauftrags als Entwurf');
+                }
+
+                const draftResult = await draftResponse.json();
+                showNotification('Virtueller Einrichtungsauftrag als Entwurf gespeichert. Weiterleitung zum Kauf von Credits.', 'success');
+                setTimeout(() => {
+                    window.location.href = 'https://auftrag.immoyes.com/index.php?page=aufladen';
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('Fehler:', error);
+            hideSpinner();
+            showNotification('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'error');
+        }
     });
 
-    try {
-        if (userCredits >= totalPrice) {
-            showSpinner();
-            
-            // Simulate a 3-second delay
-            await new Promise(resolve => setTimeout(resolve, 3000));
-
-            const response = await fetch('https://api.immoyes.com/api/virtual-staging', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: formData
-            });
-
-            if (!response.ok) {
-                throw new Error('Fehler beim Übermitteln des virtuellen Einrichtungsauftrags');
-            }
-
-            const result = await response.json();
-            hideSpinner();
-            showNotification(`Virtueller Einrichtungsauftrag erfolgreich übermittelt! Verbleibende Credits: ${result.remaining_credits}`, 'success');
-            setTimeout(() => {
-                window.location.href = 'index.php?page=dashboard';
-            }, 2000);
-        } else {
-            const draftResponse = await fetch('https://api.immoyes.com/api/virtual-staging/draft', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: formData
-            });
-
-            if (!draftResponse.ok) {
-                throw new Error('Fehler beim Speichern des virtuellen Einrichtungsauftrags als Entwurf');
-            }
-
-            const draftResult = await draftResponse.json();
-            showNotification('Virtueller Einrichtungsauftrag als Entwurf gespeichert. Weiterleitung zum Kauf von Credits.', 'success');
-            setTimeout(() => {
-                window.location.href = 'https://auftrag.immoyes.com/index.php?page=aufladen';
-            }, 2000);
-        }
-    } catch (error) {
-        console.error('Fehler:', error);
-        hideSpinner();
-        showNotification('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'error');
-    }
-});
-
-    // Initialer Aufruf zum Einrichten des Formulars
-    updateStep(currentStep);
-
-
-    // Add this function to validate the current step
-function validateCurrentStep() {
-    switch (currentStep) {
-        case 1:
-            const jobTitle = document.getElementById('jobTitle').value.trim();
-            if (!jobTitle) {
-                showNotification('Bitte geben Sie einen Auftragstitel ein.', 'error');
-                return false;
-            }
-            return true;
-        case 2:
-            const selectedStyle = document.querySelector('.furniture-style.selected');
-            if (!selectedStyle) {
-                showNotification('Bitte wählen Sie einen Möbelstil aus.', 'error');
-                return false;
-            }
-            if (fileList.length === 0) {
-                showNotification('Bitte laden Sie mindestens ein Foto hoch.', 'error');
-                return false;
-            }
-            for (let file of fileList) {
-                if (!file.roomType) {
-                    showNotification('Bitte wählen Sie für jedes Foto einen Raumtyp aus.', 'error');
+    function validateCurrentStep() {
+        switch (currentStep) {
+            case 1:
+                const jobTitle = document.getElementById('jobTitle').value.trim();
+                if (!jobTitle) {
+                    showNotification('Bitte geben Sie einen Auftragstitel ein.', 'error');
                     return false;
                 }
-            }
-            return true;
-        case 3:
-            // No mandatory fields in step 3
-            return true;
-        default:
-            return true;
+                return true;
+            case 2:
+                const selectedStyle = document.querySelector('.furniture-style.selected');
+                if (!selectedStyle) {
+                    showNotification('Bitte wählen Sie einen Möbelstil aus.', 'error');
+                    return false;
+                }
+                if (fileList.length === 0) {
+                    showNotification('Bitte laden Sie mindestens ein Foto hoch.', 'error');
+                    return false;
+                }
+                for (let file of fileList) {
+                    if (!file.roomType) {
+                        showNotification('Bitte wählen Sie für jedes Foto einen Raumtyp aus.', 'error');
+                        return false;
+                    }
+                }
+                return true;
+            case 3:
+                // No mandatory fields in step 3
+                return true;
+            default:
+                return true;
+        }
     }
-}
+
+    // Sidebar toggle functionality
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const overlay = document.getElementById('overlay');
+
+    sidebarToggle.addEventListener('click', toggleSidebar);
+    overlay.addEventListener('click', closeSidebar);
+
+    function toggleSidebar() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show');
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+    }
+
+    // Initial setup
+    updateStep(currentStep);
     </script>
 </body>
 </html>
