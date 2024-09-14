@@ -66,12 +66,38 @@
         .notification.error {
             background-color: #F56565;
         }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -256px;
+                top: 0;
+                bottom: 0;
+                transition: left 0.3s ease-in-out;
+                z-index: 50;
+            }
+            .sidebar.open {
+                left: 0;
+            }
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 40;
+            }
+            .overlay.show {
+                display: block;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
     <div class="flex h-screen">
-        <!-- Seitenleiste -->
-        <aside class="w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
             <div class="p-6">
                 <div class="flex items-center justify-center mb-8">
                     <svg class="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -109,12 +135,20 @@
             </div>
         </aside>
 
-        <!-- Hauptinhalt -->
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="overlay"></div>
+
+        <!-- Main content -->
         <main class="flex-1 overflow-x-hidden overflow-y-auto">
-            <!-- Obere Navigation -->
+            <!-- Top navigation -->
             <header class="bg-white shadow-sm">
                 <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h2 class="text-2xl font-semibold text-gray-800">3D Grundrisse</h2>
+                    <div class="flex items-center">
+                        <button id="sidebarToggle" class="md:hidden text-gray-500 hover:text-gray-700 mr-4">
+                            <i class="fas fa-bars text-2xl"></i>
+                        </button>
+                        <h2 class="text-2xl font-semibold text-gray-800">3D Grundrisse</h2>
+                    </div>
                     <div class="flex items-center space-x-4">
                         <span id="userCredits" class="text-sm font-medium text-gray-500"></span>
                         <a href="index.php?page=logout" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
@@ -254,20 +288,20 @@
     }
 
     function updateStep(step) {
-    document.querySelectorAll('.step').forEach(s => s.classList.add('step-inactive'));
-    document.getElementById(`step${step}`).classList.remove('step-inactive');
-    document.getElementById('currentStep').textContent = step;
-    document.querySelector('.bg-indigo-500.h-2\\.5').style.width = `${(step / totalSteps) * 100}%`;
-    
-    document.getElementById('prevStep').style.display = step === 1 ? 'none' : 'block';
-    document.getElementById('nextStep').textContent = step === totalSteps ? 'Absenden' : 'Nächster Schritt';
-    
-    if (step === totalSteps) {
-        updateTotalPrice();
+        document.querySelectorAll('.step').forEach(s => s.classList.add('step-inactive'));
+        document.getElementById(`step${step}`).classList.remove('step-inactive');
+        document.getElementById('currentStep').textContent = step;
+        document.querySelector('.bg-indigo-500.h-2\\.5').style.width = `${(step / totalSteps) * 100}%`;
+        
+        document.getElementById('prevStep').style.display = step === 1 ? 'none' : 'block';
+        document.getElementById('nextStep').textContent = step === totalSteps ? 'Absenden' : 'Nächster Schritt';
+        
+        if (step === totalSteps) {
+            updateTotalPrice();
+        }
     }
-}
 
-document.getElementById('nextStep').addEventListener('click', async () => {
+    document.getElementById('nextStep').addEventListener('click', async () => {
         if (validateCurrentStep()) {
             if (currentStep < totalSteps) {
                 currentStep++;
@@ -537,8 +571,27 @@ document.getElementById('nextStep').addEventListener('click', async () => {
         }
     });
 
-    // Initial call to set up the form
-    updateStep(currentStep);
+    document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const overlay = document.getElementById('overlay');
+
+        sidebarToggle.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', closeSidebar);
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('show');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
+
+        // Initial call to set up the form
+        updateStep(currentStep);
+    });
     </script>
 </body>
 </html>
