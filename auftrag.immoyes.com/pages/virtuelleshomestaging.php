@@ -534,9 +534,9 @@
     document.getElementById('colorCorrection').addEventListener('change', updateTotalPrice);
 
     function updateSubmitButton(totalPrice) {
-        const submitButton = document.getElementById('nextStep');
-        if (currentStep === totalSteps) {
-            if (userCredits >= totalPrice) {
+    const submitButton = document.getElementById('nextStep');
+    if (currentStep === totalSteps) {
+        if (userCredits >= totalPrice) {
             submitButton.textContent = 'Auftrag erteilen';
             submitButton.className = 'bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded m-2';
         } else {
@@ -544,23 +544,7 @@
             submitButton.className = 'bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded m-2';
         }
     }
-
-    function showSpinner() {
-        document.getElementById('loadingSpinner').classList.remove('hidden');
-    }
-
-    function hideSpinner() {
-        document.getElementById('loadingSpinner').classList.add('hidden');
-    }
-
-    function showNotification(message, type) {
-        const notification = document.getElementById('notification');
-        notification.textContent = message;
-        notification.classList.add(type, 'show');
-        setTimeout(() => {
-            notification.classList.remove('show');
-        }, 5000);
-    }
+}
 
     document.getElementById('virtualStagingForm').addEventListener('submit', async (e) => {
         e.preventDefault();
