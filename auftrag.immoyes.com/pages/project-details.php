@@ -58,6 +58,43 @@
             height: 100%;
             object-fit: cover;
         }
+        .action-bar {
+            background: linear-gradient(90deg, #4338ca, #3b82f6);
+            color: white;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .action-bar-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .action-button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.15s ease-in-out;
+        }
+        .action-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .pay-button {
+            background-color: #10b981;
+        }
+        .pay-button:hover {
+            background-color: #059669;
+        }
+        .buy-credits-button {
+            background-color: #f59e0b;
+        }
+        .buy-credits-button:hover {
+            background-color: #d97706;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -117,6 +154,17 @@
             </header>
 
             <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                <!-- New Action Bar -->
+                <div id="action-bar" class="action-bar hidden">
+                    <div class="action-bar-content">
+                        <div>
+                            <h2 class="text-2xl font-bold">Project Action Required</h2>
+                            <p class="text-sm mt-1">Your project is ready to move forward.</p>
+                        </div>
+                        <div id="action-buttons"></div>
+                    </div>
+                </div>
+
                 <div id="project-details" class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
                     <div class="px-4 py-5 sm:p-6">
                         <div id="project-info" class="space-y-4"></div>
@@ -246,19 +294,25 @@
 
         function updateProjectInfo(project) {
             const detailsContainer = document.getElementById('project-info');
-            let statusButton = '';
+            const actionBar = document.getElementById('action-bar');
+            const actionButtons = document.getElementById('action-buttons');
             
+            // Clear previous action buttons
+            actionButtons.innerHTML = '';
+            actionBar.classList.add('hidden');
+
             if (project.status.toLowerCase() === 'entwurf') {
+                actionBar.classList.remove('hidden');
                 if (userCredits >= project.cost) {
-                    statusButton = `
-                        <button id="pay-now-button" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
-                            <i class="fas fa-check mr-2"></i> Jetzt Auftrag zahlen und zur Bearbeitung freigeben
+                    actionButtons.innerHTML = `
+                    <button id="pay-now-button" class="action-button pay-button">
+                            Jetzt zahlen €${project.cost.toFixed(2)}
                         </button>
                     `;
                 } else {
-                    statusButton = `
-                        <a href="https://auftrag.immoyes.com/index.php?page=aufladen" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                            <i class="fas fa-coins mr-2"></i> Sie verfügen nicht über ausreichend Guthaben. Bitte Guthaben aufladen.
+                    actionButtons.innerHTML = `
+                        <a href="https://auftrag.immoyes.com/index.php?page=aufladen" class="action-button buy-credits-button">
+                            Guthaben kaufen
                         </a>
                     `;
                 }
@@ -291,7 +345,6 @@
                         </div>
                     </dl>
                 </div>
-                ${statusButton}
                 ${project.status.toLowerCase() === 'abgeschlossen' ? `
                     <div class="mt-6">
                         <button id="download-final-images" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
@@ -301,7 +354,7 @@
                 ` : ''}
             `;
 
-            // Add event listener to the download button if it exists
+            // Add event listeners
             const downloadButton = document.getElementById('download-final-images');
             if (downloadButton) {
                 downloadButton.addEventListener('click', function() {
@@ -309,7 +362,6 @@
                 });
             }
 
-            // Add event listener to the pay now button if it exists
             const payNowButton = document.getElementById('pay-now-button');
             if (payNowButton) {
                 payNowButton.addEventListener('click', function() {
