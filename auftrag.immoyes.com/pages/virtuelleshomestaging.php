@@ -476,45 +476,46 @@
         }
 
         function updateFileList() {
-            const fileListElement = document.getElementById('fileList');
-            fileListElement.innerHTML = '';
-            fileList.forEach((fileInfo, index) => {
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item bg-white shadow-md rounded-lg p-6 mb-4 transition-all duration-300 ease-in-out';
-                fileItem.innerHTML = `
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="font-semibold text-lg">${fileInfo.file.name}</span>
-                        <button type="button" class="text-red-500 hover:text-red-700 transition-colors duration-300" onclick="removeFile(${index})">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
+    const fileListElement = document.getElementById('fileList');
+    fileListElement.innerHTML = '';
+    fileList.forEach((fileInfo, index) => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item bg-white shadow-md rounded-lg p-6 mb-4 transition-all duration-300 ease-in-out';
+        fileItem.innerHTML = `
+            <div class="flex justify-between items-center mb-4">
+                <span class="font-semibold text-lg">${fileInfo.file.name}</span>
+                <button type="button" class="text-red-500 hover:text-red-700 transition-colors duration-300" onclick="removeFile(${index})">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div class="md:col-span-2">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Raumtyp</label>
+                        <select class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300 ${!fileInfo.roomType ? 'border-yellow-500' : ''}" onchange="updateFileInfo(${index}, 'roomType', this.value)">
+                            <option value="">Raumtyp auswählen...</option>
+                            ${roomTypes.map(type => `<option value="${type}" ${fileInfo.roomType === type ? 'selected' : ''}>${type}</option>`).join('')}
+                        </select>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                        <div class="md:col-span-2">
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Raumtyp</label>
-                                <select class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300 ${!fileInfo.roomType ? 'border-yellow-500' : ''}" onchange="updateFileInfo(${index}, 'roomType', this.value)">
-                                    <option value="">Raumtyp auswählen...</option>
-                                    ${roomTypes.map(type => `<option value="${type}" ${fileInfo.roomType === type ? 'selected' : ''}>${type}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Anmerkungen</label>
-                                <textarea class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300" rows="3" onchange="updateFileInfo(${index}, 'notes', this.value)" placeholder="Fügen Sie hier spezifische Anweisungen hinzu...">${fileInfo.notes}</textarea>
-                            </div>
-                        </div>
-                        <div class="flex justify-center items-center">
-                            <div class="w-32 h-32 overflow-hidden rounded-lg">
-                                <img src="${URL.createObjectURL(fileInfo.file)}" alt="Vorschau" class="w-full h-full object-cover">
-                            </div>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Anmerkungen</label>
+                        <textarea class="w-full px-3 py-2 text-gray-700 border rounded-lg focus:outline-none focus:border-indigo-500 transition-colors duration-300" rows="3" onchange="updateFileInfo(${index}, 'notes', this.value)" placeholder="Fügen Sie hier spezifische Anweisungen hinzu...">${fileInfo.notes}</textarea>
                     </div>
-                `;
-                fileListElement.appendChild(fileItem);
-            });
-            updateTotalPrice();
-        }
+                </div>
+                <div class="flex justify-center items-center">
+                    <div class="w-32 h-32 overflow-hidden rounded-lg">
+                        <img src="${URL.createObjectURL(fileInfo.file)}" alt="Vorschau" class="w-full h-full object-cover">
+                    </div>
+                </div>
+            </div>
+        `;
+        fileListElement.appendChild(fileItem);
+    });
+    updateTotalPrice();
+}
+
 
         function updateFileInfo(index, field, value) {
             fileList[index][field] = value;
