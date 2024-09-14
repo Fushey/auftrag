@@ -109,6 +109,32 @@
         .image-compare:hover .slider-hint {
             opacity: 1;
         }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -256px;
+                top: 0;
+                bottom: 0;
+                transition: left 0.3s ease-in-out;
+                z-index: 50;
+            }
+            .sidebar.open {
+                left: 0;
+            }
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 40;
+            }
+            .overlay.show {
+                display: block;
+            }
+        }
     </style>
 </head>
 <script src="//code.tidio.co/2mygnnyysqrn6hv5g3spfryxcx7wqj9h.js" async></script>
@@ -116,15 +142,15 @@
 <body class="bg-gray-50 text-gray-800">
     <div class="flex h-screen">
         <!-- Sidebar -->
-        <aside class="w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
+        <aside id="sidebar" class="sidebar w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
             <div class="p-6">
                 <div class="flex items-center justify-center mb-8">
                     <svg class="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                     </svg>
                     <a href="http://auftrag.immoyes.com/index.php?page=dashboard">
-  <h1 class="text-2xl font-bold ml-3">ImmoYes</h1>
-</a>
+                        <h1 class="text-2xl font-bold ml-3">ImmoYes</h1>
+                    </a>
                 </div>
                 <nav>
                     <a href="https://auftrag.immoyes.com/index.php?page=dashboard" class="sidebar-link flex items-center py-3 px-4 rounded-lg transition duration-200 hover:bg-white hover:bg-opacity-10 mb-2">
@@ -156,12 +182,20 @@
             </div>
         </aside>
 
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="overlay"></div>
+
         <!-- Main Content -->
         <main class="flex-1 overflow-x-hidden overflow-y-auto">
             <!-- Top Navigation -->
             <header class="bg-white shadow-sm">
                 <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h2 class="text-2xl font-semibold text-gray-800">Neuer Auftrag</h2>
+                    <div class="flex items-center">
+                        <button id="sidebarToggle" class="md:hidden text-gray-500 hover:text-gray-700 mr-4">
+                            <i class="fas fa-bars text-2xl"></i>
+                        </button>
+                        <h2 class="text-2xl font-semibold text-gray-800">Neuer Auftrag</h2>
+                    </div>
                     <div class="flex items-center space-x-4">
                         <span id="userCredits" class="text-sm font-medium text-gray-500"></span>
                         <a href="index.php?page=logout" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
@@ -182,6 +216,22 @@
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const token = localStorage.getItem('token');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const overlay = document.getElementById('overlay');
+
+        sidebarToggle.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', closeSidebar);
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('show');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
 
         // Fetch user profile data for credits display
         fetch('https://api.immoyes.com/profile', {
@@ -197,8 +247,7 @@
                     <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-green-400" fill="currentColor" viewBox="0 0 8 8">
                         <circle cx="4" cy="4" r="3" />
                     </svg>
-                                   Guthaben ${data.credits.toFixed(2)}€
-
+                    Guthaben ${data.credits.toFixed(2)}€
                 </span>
             `;
         })
@@ -254,7 +303,7 @@
                     <h2 class="font-bold text-2xl mb-3">${service.title}</h2>
                     <p class="text-gray-700 text-lg mb-3">Preis: ${service.price.toFixed(2)}€</p>
                     <div class="mb-4 bg-gray-100 rounded-lg p-4 border border-gray-200">
-                        <p class="text-sm font-semibold text-gray-700 mb-2">Geschätzte Fertigstellung:</p>
+<p class="text-sm font-semibold text-gray-700 mb-2">Geschätzte Fertigstellung:</p>
                         <div class="flex items-center">
                             <i class="far fa-calendar-alt ${etaClass} mr-2 text-xl"></i>
                             <span class="${etaClass} font-medium text-lg">${estimatedDate}</span>
@@ -320,7 +369,7 @@
                 daysToAdd = 4; // 72 hours
                 break;
             default:
-            daysToAdd = 3; // Default to 48 hours if service is not recognized
+                daysToAdd = 3; // Default to 48 hours if service is not recognized
         }
 
         let estimatedDate = new Date(today);
@@ -337,7 +386,7 @@
 
         // Determine color class based on delivery speed
         let etaClass;
-        if (daysToAdd <= 5) {
+        if (daysToAdd <= 3) {
             etaClass = 'text-green-600';
         } else if (daysToAdd <= 5) {
             etaClass = 'text-yellow-600';

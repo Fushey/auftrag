@@ -24,20 +24,46 @@
         .sidebar-link.active .sidebar-icon {
             color: #FFF;
         }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -256px;
+                top: 0;
+                bottom: 0;
+                transition: left 0.3s ease-in-out;
+                z-index: 50;
+            }
+            .sidebar.open {
+                left: 0;
+            }
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 40;
+            }
+            .overlay.show {
+                display: block;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
     <div class="flex h-screen">
         <!-- Sidebar -->
-        <aside class="w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
+        <aside id="sidebar" class="sidebar w-64 bg-gradient-to-b from-indigo-800 to-indigo-900 text-white">
             <div class="p-6">
                 <div class="flex items-center justify-center mb-8">
                     <svg class="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                     </svg>
                     <a href="http://auftrag.immoyes.com/index.php?page=dashboard">
-  <h1 class="text-2xl font-bold ml-3">ImmoYes</h1>
-</a>
+                        <h1 class="text-2xl font-bold ml-3">ImmoYes</h1>
+                    </a>
                 </div>
                 <nav>
                     <a href="https://auftrag.immoyes.com/index.php?page=dashboard" class="sidebar-link flex items-center py-3 px-4 rounded-lg transition duration-200 hover:bg-white hover:bg-opacity-10 mb-2">
@@ -69,12 +95,20 @@
             </div>
         </aside>
 
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="overlay"></div>
+
         <!-- Main Content -->
         <main class="flex-1 overflow-x-hidden overflow-y-auto">
             <!-- Top Navigation -->
             <header class="bg-white shadow-sm">
                 <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h2 class="text-2xl font-semibold text-gray-800">Guthaben Kaufen</h2>
+                    <div class="flex items-center">
+                        <button id="sidebarToggle" class="md:hidden text-gray-500 hover:text-gray-700 mr-4">
+                            <i class="fas fa-bars text-2xl"></i>
+                        </button>
+                        <h2 class="text-2xl font-semibold text-gray-800">Guthaben Kaufen</h2>
+                    </div>
                     <div class="flex items-center space-x-4">
                         <span id="userCredits" class="text-sm font-medium text-gray-500"></span>
                         <a href="index.php?page=logout" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
@@ -164,7 +198,7 @@
                     <h2 class="text-2xl font-bold text-gray-900 mb-6">Guthaben per Banküberweisung kaufen</h2>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                        <button class="credit-package bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105" data-credits="50" data-price="50">
+                    <button class="credit-package bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105" data-credits="50" data-price="50">
                             <span class="block text-2xl mb-1">50 Credits</span>
                             <span class="block text-lg">50 €</span>
                         </button>
@@ -176,7 +210,7 @@
                             <span class="block text-2xl mb-1">200 Credits</span>
                             <span class="block text-lg">200 €</span>
                         </button>
-                        <button class="credit-package bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105" data-credits="500" data-price="500">
+                        <button class="credit-package bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105" data-credits="500" data-price="500">
                             <span class="block text-2xl mb-1">500 Credits</span>
                             <span class="block text-lg">500 €</span>
                         </button>
@@ -241,6 +275,23 @@
     <script src="https://www.paypal.com/sdk/js?client-id=AQjRqzAsOwt46ocslyW6pHRa1W5Rp1NKuqEWrxVhSweEtOrNAqr6DktdukBE_u4OygKYnaiIlccQsId0&currency=EUR"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const overlay = document.getElementById('overlay');
+
+        sidebarToggle.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', closeSidebar);
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('show');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+        }
+
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = 'login.php';
@@ -462,8 +513,30 @@
             // Show the success message
             successMessage.classList.remove('hidden');
 
-            
+            // Start countdown
+            let countdown = 5;
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                countdownElement.textContent = countdown;
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    window.location.href = 'index.php?page=dashboard';
+                }
+            }, 1000);
         }
+
+        // Back buttons for payment screens
+        const backButtons = document.querySelectorAll('.back-to-payment-selection');
+        backButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                document.getElementById('payment-method-selection').classList.remove('hidden');
+                document.getElementById('paypal-payment-screen').classList.add('hidden');
+                document.getElementById('bank-transfer-screen').classList.add('hidden');
+            });
+        });
+
+        // Initialize the page
+        checkTokenValidity();
     });
     </script>
 </body>
