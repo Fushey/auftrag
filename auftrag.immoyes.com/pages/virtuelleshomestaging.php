@@ -289,6 +289,13 @@
     <div id="notification" class="notification"></div>
 
     <script>
+function updateFileInfo(index, field, value) {
+    fileList[index][field] = value;
+    if (field === 'roomType') {
+        validateCurrentStep();
+    }
+}
+
     document.addEventListener('DOMContentLoaded', function() {
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
