@@ -3138,14 +3138,14 @@ def process_project_payment(current_user, project_id):
             # Get the project
             project = Project.query.filter_by(id=project_id, user_id=current_user.id).first()
             if not project:
-                return jsonify({'error': 'Project not found or does not belong to the user'}), 404
+                return jsonify({'error': 'Projekt nicht gefunden oder gehört nicht zum Benutzer'}), 404
 
             if project.status.lower() != 'entwurf':
-                return jsonify({'error': 'Project is not in draft status'}), 400
+                return jsonify({'error': 'Projekt ist nicht im Entwurfsstatus'}), 400
 
             # Check if the user has sufficient credits
             if current_user.credits < cost:
-                return jsonify({'error': 'Insufficient credits'}), 400
+                return jsonify({'error': 'Unzureichendes Guthaben'}), 400
 
             # Update user credits
             current_user.credits -= cost
@@ -3157,15 +3157,79 @@ def process_project_payment(current_user, project_id):
             # Commit the changes
             db.session.commit()
 
+        # Send email to customer
+        customer_subject = "Neues Projekt erstellt"
+        customer_html = f"""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Neues Projekt erstellt</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .logo {{ text-align: center; margin-bottom: 20px; }}
+                .button {{
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background-color: #007bff;
+                    color: #ffffff !important;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                }}
+                .button:hover {{ background-color: #0056b3; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="logo">
+                    <img src="cid:logo" alt="ImmoYes Logo" style="max-width: 200px;">
+                </div>
+                <h1>Vielen Dank für Ihr neues Projekt!</h1>
+                <p>Sehr geehrte(r) Kunde(in),</p>
+                <p>Wir freuen uns, Ihnen mitteilen zu können, dass Ihr neues Projekt erfolgreich erstellt wurde.</p>
+                <p>Details zu Ihrem Projekt:</p>
+                <ul>
+                    <li>Projekt-ID: {project.id}</li>
+                    <li>Status: In Bearbeitung</li>
+                    <li>Erstellungsdatum: {project.updated_at.strftime('%d.%m.%Y')}</li>
+                </ul>
+                <p>Sie können Ihr Projekt jederzeit über den folgenden Link einsehen:</p>
+                <p style="text-align: center;">
+                    <a href="http://auftrag.immoyes.com/index.php?page=project-details&id={project.id}" class="button" style="color: #ffffff !important;">Projekt ansehen</a>
+                </p>
+                <p>Wir werden Sie über den Fortschritt Ihres Projekts auf dem Laufenden halten. Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
+                <p>Mit freundlichen Grüßen,<br>Ihr ImmoYes Team</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        customer_msg = Message(customer_subject,
+                               sender=("Immo Yes", app.config['MAIL_USERNAME']),
+                               recipients=[current_user.email],
+                               bcc=['jansen.tobias@gmail.com'])
+        customer_msg.html = customer_html
+
+        # Attach logo image
+        with app.open_resource("static/logo.png", "rb") as logo:
+            customer_msg.attach("logo.png", "image/png", logo.read(), "inline", headers={'Content-ID': '<logo>'})
+
+        mail.send(customer_msg)
+
         return jsonify({
-            'message': 'Payment processed successfully',
+            'message': 'Zahlung erfolgreich verarbeitet',
             'newStatus': 'in bearbeitung',
             'remainingCredits': current_user.credits
         }), 200
 
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({'error': 'Database error occurred'}), 500
+        return jsonify({'error': 'Datenbankfehler aufgetreten'}), 500
+    except Exception as e:
+        return jsonify({'error': 'Bei der Verarbeitung der Anfrage ist ein Fehler aufgetreten'}), 500
 
 
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
