@@ -158,8 +158,8 @@
                 <div id="action-bar" class="action-bar hidden">
                     <div class="action-bar-content">
                         <div>
-                            <h2 class="text-2xl font-bold">Project Action Required</h2>
-                            <p class="text-sm mt-1">Your project is ready to move forward.</p>
+                            <h2 class="text-2xl font-bold">Auftrag noch unbezahlt</h2>
+                            <p class="text-sm mt-1">Auftrag jetzt zahlen und zur Bearbeitung freigeben</p>
                         </div>
                         <div id="action-buttons"></div>
                     </div>
